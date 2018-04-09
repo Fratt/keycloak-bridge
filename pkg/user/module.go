@@ -45,3 +45,11 @@ func (m *module) GetUsers(ctx context.Context, realm string) ([]string, error) {
 
 	return users, nil
 }
+
+//Broken module
+type BrokenModule struct{}
+
+//Broken module is a module
+func (m *BrokenModule) GetUsers(ctx context.Context, realm string) ([]string, error) {
+	return nil, errors.New("Expected error")
+}

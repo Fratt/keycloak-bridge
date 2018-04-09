@@ -19,13 +19,23 @@ import (
 )
 
 var (
-	host = pflag.String("host", "127.0.0.1", "keycloak bridge host")
-	port = pflag.String("port", "8888", "keycloak bridge port")
+	host   = pflag.String("host", "127.0.0.1", "keycloak bridge host")
+	port   = pflag.String("port", "8888", "keycloak bridge port")
+	broken = pflag.Bool("Broken", false, "Use broken route?")
 )
 
 func main() {
 	// Configuration flags.
 	pflag.Parse()
+
+	var path string
+	{
+		if *broken {
+			path = "failure"
+		} else {
+			path = "getusers"
+		}
+	}
 
 	// Logger.
 	var logger = log.NewLogfmtLogger(os.Stdout)
@@ -79,7 +89,7 @@ func main() {
 	{
 		var err error
 		var req *http.Request
-		var url = fmt.Sprintf("http://%s:%s/getusers", *host, *port)
+		var url = fmt.Sprintf("http://%s:%s/%s", *host, *port, path)
 
 		req, err = http.NewRequest("POST", url, bytes.NewReader(b.FinishedBytes()))
 		if err != nil {

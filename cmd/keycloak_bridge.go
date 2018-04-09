@@ -298,6 +298,38 @@ func main() {
 		Endpoint: userEndpoint,
 	}
 
+	// Broken user service
+	var brokenUserLogger = log.With(logger, "svc", "broken_user")
+
+	var brokenUserModule user.Module
+	{
+		brokenUserModule = user.NewModule(keycloakClient)
+		brokenUserModule = user.MakeModuleInstrumentingMW(influxMetrics.NewHistogram("user_module"))(brokenUserModule)
+		brokenUserModule = user.MakeModuleLoggingMW(log.With(brokenUserLogger, "mw", "module"))(brokenUserModule)
+		brokenUserModule = user.MakeModuleTracingMW(tracer)(brokenUserModule)
+	}
+
+	var brokenUserComponent user.Component
+	{
+		brokenUserComponent = user.NewComponent(brokenUserModule)
+		brokenUserComponent = user.MakeComponentInstrumentingMW(influxMetrics.NewHistogram("user_component"))(brokenUserComponent)
+		brokenUserComponent = user.MakeComponentLoggingMW(log.With(brokenUserLogger, "mw", "component"))(brokenUserComponent)
+		brokenUserComponent = user.MakeComponentTracingMW(tracer)(brokenUserComponent)
+		brokenUserComponent = user.MakeComponentTrackingMW(sentryClient, log.With(brokenUserLogger, "mw", "component"))(brokenUserComponent)
+	}
+
+	var brokenUserEndpoint endpoint.Endpoint
+	{
+		brokenUserEndpoint = user.MakeGetUsersEndpoint(brokenUserComponent)
+		brokenUserEndpoint = middleware.MakeEndpointInstrumentingMW(influxMetrics.NewHistogram("user_endpoint"))(brokenUserEndpoint)
+		brokenUserEndpoint = middleware.MakeEndpointLoggingMW(log.With(brokenUserLogger, "mw", "endpoint", "unit", "getusers"))(brokenUserEndpoint)
+		brokenUserEndpoint = middleware.MakeEndpointTracingMW(tracer, "user_endpoint")(brokenUserEndpoint)
+		brokenUserEndpoint = middleware.MakeEndpointCorrelationIDMW(flakiClient, tracer)(brokenUserEndpoint)
+	}
+
+	var brokenUserEndpoints = user.Endpoints{
+		Endpoint: userEndpoint,
+	}
 	// Event service.
 	var eventLogger = log.With(logger, "svc", "event")
 
@@ -492,6 +524,14 @@ func main() {
 			getUsersHandler = middleware.MakeHTTPTracingMW(tracer, componentName, "http_server_getusers")(getUsersHandler)
 		}
 		route.Handle("/getusers", getUsersHandler)
+
+		// Broken Users.
+		var getBrokenUsersHandler http.Handler
+		{
+			getBrokenUsersHandler = user.MakeHTTPGetUsersHandler(brokenUserEndpoints.Endpoint)
+			getBrokenUsersHandler = middleware.MakeHTTPTracingMW(tracer, componentName, "http_server_getusers")(getBrokenUsersHandler)
+		}
+		route.Handle("/failure", getBrokenUsersHandler)
 
 		// Health checks.
 		var healthSubroute = route.PathPrefix("/health").Subrouter()
