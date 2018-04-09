@@ -303,7 +303,7 @@ func main() {
 
 	var brokenUserModule user.Module
 	{
-		brokenUserModule = user.NewModule(keycloakClient)
+		brokenUserModule = &user.BrokenModule{}
 		brokenUserModule = user.MakeModuleInstrumentingMW(influxMetrics.NewHistogram("user_module"))(brokenUserModule)
 		brokenUserModule = user.MakeModuleLoggingMW(log.With(brokenUserLogger, "mw", "module"))(brokenUserModule)
 		brokenUserModule = user.MakeModuleTracingMW(tracer)(brokenUserModule)
@@ -328,7 +328,7 @@ func main() {
 	}
 
 	var brokenUserEndpoints = user.Endpoints{
-		Endpoint: userEndpoint,
+		Endpoint: brokenUserEndpoint,
 	}
 	// Event service.
 	var eventLogger = log.With(logger, "svc", "event")
